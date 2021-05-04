@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 SESSION_FIELDS = "date", "available_capacity", "min_age_limit", "vaccine"
 CENTER_FIELDS = "name", "block_name", "pincode", "sessions"
-default_age = 46
+default_age = 45
 previous_sessions = []
 count = 0
 
