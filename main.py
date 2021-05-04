@@ -121,11 +121,9 @@ def sendTelegramMessage():
 
 
 def getSlotsByDistrict(district_id, date):
-    # ua = UserAgent().random
-    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
     response = requests.get(
         'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?'
-        f'district_id={district_id}&date={date}',headers=headers)
+        f'district_id={district_id}&date={date}')
     response.raise_for_status()
     response_json = response.json()
     # print(response_json)
