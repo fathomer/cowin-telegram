@@ -1,8 +1,9 @@
-import requests
 import logging
+from datetime import datetime
+
+import requests
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
-from datetime import datetime
 
 # Enable logging
 logging.basicConfig(
@@ -18,18 +19,15 @@ previous_sessions = []
 count = 0
 
 
+def formatJson(input_dict):
+    output = f"Date: {datetime.strptime(input_dict['date'], '%d-%m-%Y').strftime('%-d %B %y')}\n" \
+             f"Center Name: {input_dict['name']}\nCity: {input_dict['block_name']} - {input_dict['pincode']}" \
+             f"\nAvailable Capacity: {input_dict['available_capacity']}\nVaccine: {input_dict['vaccine']}"
+    return output
+
+
 def filterDictWithFields(input_dict, fields):
     return {k: input_dict[k] for k in fields}
-
-
-def countUnit(n):
-    return str(n) + ("th" if 4 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th"))
-
-
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
-def start(update: Update, _: CallbackContext) -> None:
-    update.message.reply_text('Hi! Use /set <seconds> to set a timer')
 
 
 def alarm(context: CallbackContext) -> None:
@@ -37,19 +35,22 @@ def alarm(context: CallbackContext) -> None:
     global count
     global previous_sessions
     count += 1
-    if count % 10 == 0:
+    if count % 50 == 0:
         previous_sessions = []
     """Send the alarm message."""
     job = context.job
     print(f"Calling the api to get slots for age = {default_age}, count = {count}!")
     try:
         outputText = getSlotsByDistrict(192, datetime.today().strftime('%d-%m-%Y'))
+        if outputText:
+            print("Sending message")
+            for center in outputText:
+                context.bot.send_message(job.context, text=formatJson(center))
+            context.bot.send_message(job.context, text="Login to Cowin : https://selfregistration.cowin.gov.in/")
+
     except Exception as e:
-        loggger.error(e)
-        outputText = str(e)
-    if outputText:
-        print("Sending message")
-        context.bot.send_message(job.context, text=outputText)
+        logger.error(e)
+        context.bot.send_message("-1001448774527", text=str(e))
 
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
@@ -62,28 +63,24 @@ def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     return True
 
 
-def set_timer(update: Update, context: CallbackContext) -> None:
+def start(update: Update, context: CallbackContext) -> None:
     """Add a job to the queue."""
-    chat_id = update.message.chat_id
+    # chat_id = update.message.chat_id
+    chat_id = "-1001416312472"  # HARDCODE
     try:
         # args[0] should contain the time for the timer in seconds
-        due = int(context.args[0])
-        if due < 0:
-            update.message.reply_text('Sorry we can not go back to future!')
-            return
-        elif due < 5:
-            update.message.reply_text('Sorry minimum 5 seconds is required.!')
-            return
-        job_removed = remove_job_if_exists(str(chat_id), context)
-        context.job_queue.run_repeating(alarm, due, context=chat_id, name=str(chat_id), first=0)
+        timer = 180  # TODO: Change to Constant
 
-        text = 'Timer successfully set!'
+        job_removed = remove_job_if_exists(str(chat_id), context)
+        context.job_queue.run_repeating(alarm, timer, context=chat_id, name=str(chat_id), first=1)
+
+        text = 'Started successfully!'
         if job_removed:
             text += ' Old one was removed.'
         update.message.reply_text(text)
 
     except (IndexError, ValueError):
-        update.message.reply_text('Usage: /set <seconds>')
+        update.message.reply_text('Usage: /start')
 
 
 def unset(update: Update, context: CallbackContext) -> None:
@@ -92,21 +89,21 @@ def unset(update: Update, context: CallbackContext) -> None:
     previous_sessions = []
     count = 0
     """Remove the job if the user changed their mind."""
-    chat_id = update.message.chat_id
+    # chat_id = update.message.chat_id
+    chat_id = "-1001416312472"  # TODO: Constant
     job_removed = remove_job_if_exists(str(chat_id), context)
     text = 'Timer successfully cancelled!' if job_removed else 'You have no active timer.'
     update.message.reply_text(text)
 
 
 def sendTelegramMessage():
-    updater = Updater('1649699075:AAE34izKebh1QmOhv6pt4deD9o-ysfqM2v4')
+    updater = Updater('')  # TODO: Secure Token
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", start))
-    dispatcher.add_handler(CommandHandler("set", set_timer))
     dispatcher.add_handler(CommandHandler("unset", unset))
 
     # Start the Bot
@@ -121,14 +118,13 @@ def sendTelegramMessage():
 def getSlotsByDistrict(district_id, date):
     response = requests.get(
         'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?'
-        f'district_id={district_id}&date={date}')
+        f'district_id={district_id}&date={date}')  # TODO: Constant
     response.raise_for_status()
     response_json = response.json()
-    # print(response_json)
     centers = response_json['centers']
     centers = getValidCentersWithSessionsList(centers)
     if len(centers) > 0:
-        return str(centers)
+        return centers
     else:
         return False
 
@@ -137,22 +133,18 @@ def getValidCentersWithSessionsList(centers):
     global default_age
     global previous_sessions
     current_sessions = []
-    valid_centers = []
+    valid_sessions = []
     for center in centers:
-        valid_sessions = []
+        filteredCenter = filterDictWithFields(center, CENTER_FIELDS)
         for session in center['sessions']:
             if session['min_age_limit'] < default_age and session['available_capacity'] > 0:
                 current_sessions.append(session["session_id"])
                 if session["session_id"] not in previous_sessions:
-                    # print(session)
                     session = filterDictWithFields(session, SESSION_FIELDS)
+                    session.update(filteredCenter)
                     valid_sessions.append(session)
-        if len(valid_sessions) > 0:
-            center['sessions'] = valid_sessions
-            center = filterDictWithFields(center, CENTER_FIELDS)
-            valid_centers.append(center)
     previous_sessions = current_sessions
-    return valid_centers
+    return valid_sessions
 
 
 if __name__ == '__main__':
