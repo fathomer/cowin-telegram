@@ -45,6 +45,7 @@ def alarm(context: CallbackContext) -> None:
     try:
         outputText = getSlotsByDistrict(192, datetime.today().strftime('%d-%m-%Y'))
     except Exception as e:
+        loggger.error(e)
         outputText = str(e)
     if outputText:
         print("Sending message")
