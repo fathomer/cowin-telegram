@@ -1,8 +1,8 @@
 import requests
 import logging
-import time
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
+from datetime import datetime
 
 # Enable logging
 logging.basicConfig(
@@ -11,10 +11,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-
-SESSION_FIELDS = "date",  "available_capacity", "min_age_limit", "vaccine"
+SESSION_FIELDS = "date", "available_capacity", "min_age_limit", "vaccine"
 CENTER_FIELDS = "name", "block_name", "pincode", "sessions"
-default_age = 45
+default_age = 46
 previous_sessions = []
 count = 0
 
@@ -38,20 +37,19 @@ def alarm(context: CallbackContext) -> None:
     global count
     global previous_sessions
     count += 1
-    # if count == 5:
-        # print("Reset count")
-        # previous_sessions = []
+    if count % 10 == 0:
+        previous_sessions = []
     """Send the alarm message."""
     job = context.job
     print(f"Calling the api to get slots for age = {default_age}, count = {count}!")
     try:
-        outputText = getSlotsByDistrict(192, '04-05-2021')
+        outputText = getSlotsByDistrict(192, datetime.today().strftime('%d-%m-%Y'))
     except Exception as e:
+        loggger.error(e)
         outputText = str(e)
     if outputText:
-        print("Sending messgage")
+        print("Sending message")
         context.bot.send_message(job.context, text=outputText)
-
 
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
@@ -157,21 +155,5 @@ def getValidCentersWithSessionsList(centers):
     return valid_centers
 
 
-def runEveryXSeconds(interval, func, *args):
-    start_time = time.time()
-    count = 0
-    while True:
-        count += 1
-        print(f"Executing function for {countUnit(count)} time")
-        func(*args)
-        try:
-            func(*args)
-        except Exception as e:
-            print(e)
-        print(f"Function execution complete")
-        time.sleep(interval - ((time.time() - start_time) % interval))
-
-
 if __name__ == '__main__':
     sendTelegramMessage()
-    # runEveryXSeconds(10, getSlotsByDistrict, 192, '04-05-2021')
