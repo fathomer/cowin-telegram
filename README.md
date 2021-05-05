@@ -7,6 +7,6 @@ To start the bot, run the script.py (python script.py) and then message /start t
 
 To stop, message /stop to the bot or simply stop the code execution by CTRL+C from the console.
 
-Example channel used in the repo : 
+Example channel used in the repo :  
 Notification of the vaccine slots for 18+ whenever they are available in any center in Rohtak district, in next 7 days.
 https://t.me/rohtakVaccineSlots
