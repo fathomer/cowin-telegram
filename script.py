@@ -23,7 +23,7 @@ def alarm(context: CallbackContext) -> None:
     job = context.job
     try:
         outputText = getSlotsByDistrict(
-            192, datetime.today().strftime('%d-%m-%Y'))
+            config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
         if outputText:
             for center in outputText:
                 context.bot.send_message(
@@ -68,6 +68,16 @@ def stop(update: Update, context: CallbackContext) -> None:
     text = 'Bot successfully stopped' if job_removed else 'Bot is not running.'
     update.message.reply_text(text)
 
+def update(update: Update, context: CallbackContext) -> None:
+    chat_id = config.EXCEPTION_CHANNEL_CHAT_ID
+    try:
+        context.job_queue.run_once(
+            updateRawResponse, 1, context=chat_id, name=str(chat_id))
+        text = 'Will send next api call to update channel.'
+        update.message.reply_text(text)
+    except (IndexError, ValueError):
+        update.message.reply_text('Usage: /start')
+
 
 def sendTelegramMessage():
     updater = Updater(config.TOKEN)
@@ -79,6 +89,8 @@ def sendTelegramMessage():
         "start", start, Filters.user(username="@fathomer")))
     dispatcher.add_handler(CommandHandler(
         "stop", stop, Filters.user(username="@fathomer")))
+    dispatcher.add_handler(CommandHandler(
+        "update", update, Filters.user(username="@fathomer")))
 
     # Start the Bot
     updater.start_polling()
@@ -88,12 +100,42 @@ def sendTelegramMessage():
     # non-blocking and will stop the bot gracefully.
     updater.idle()
 
+def updateRawResponse(context: CallbackContext) -> None:
+    """Send the raw message to test channel."""
+    job = context.job
+    try:
+        outputText = getRawResponse(
+            config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
+        if outputText:
+            for center in outputText:
+                context.bot.send_message(
+                    job.context, text=(utils.formatDictToMessage(center)))
+    except Exception as e:
+        logger.error(e)
+        globals.setHeader()
+        context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=str(e)+"\n FROM UPDATE COMMAND" )
+
+def getRawResponse(district_id, date):
+    response = requests.get(config.CALENDAR_URL.format(
+        district_id=district_id, date=date), headers=globals.header)
+    response.raise_for_status()
+    centers = response.json()['centers']
+    responseOut = []
+    for center in centers:
+        sessions = center['sessions']
+        center = utils.filterDictByFields(center, config.CENTER_FIELDS)
+        for session in sessions:
+            if session['min_age_limit'] <= config.MIN_AGE:
+                session = utils.filterDictByFields(
+                    session, config.SESSION_FIELDS)
+                session.update(center)
+                responseOut.append(session)
+    return responseOut
+
 
 def getSlotsByDistrict(district_id, date):
-    ua = UserAgent()
-    header = {'User-Agent': str(ua.random)} 
     response = requests.get(config.CALENDAR_URL.format(
-        district_id=district_id, date=date), headers=header)
+        district_id=district_id, date=date), headers=globals.header)
     response.raise_for_status()
     centers = response.json()['centers']
     return getValidCentersWithSessionsList(centers)

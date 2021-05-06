@@ -9,10 +9,12 @@ MIN_AGE = 18
 CALENDAR_URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/' \
                'calendarByDistrict?district_id={district_id}&date={date}'
 
+ROHTAK_DISTRICT_ID = 192
+
 ROHTAK_CHANNEL_CHAT_ID = -1001416312472
 
 EXCEPTION_CHANNEL_CHAT_ID = -1001448774527
 
-POLLING_INTERVAL = 180
+POLLING_INTERVAL = 40
 
 DEFAULT_MESSAGE = "Login to COWIN Portal :\n https://selfregistration.cowin.gov.in/"
