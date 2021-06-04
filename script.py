@@ -148,7 +148,7 @@ def getValidCentersWithSessionsList(centers):
         sessions = center['sessions']
         center = utils.filterDictByFields(center, config.CENTER_FIELDS)
         for session in sessions:
-            if session['min_age_limit'] <= config.MIN_AGE and session['available_capacity'] > 0:
+            if session['min_age_limit'] <= config.MIN_AGE and session['available_capacity'] > 1:
                 current_sessions_ids.append(session["session_id"])
                 if session["session_id"] not in globals.previous_sessions:
                     session = utils.filterDictByFields(
