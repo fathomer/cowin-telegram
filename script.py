@@ -1,15 +1,22 @@
+import json
 import logging
 from datetime import datetime
+from re import S
+from urllib import parse
+import traceback
 
 import requests
-from telegram import Update
+from telegram import Update, ParseMode
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from telegram.ext.filters import Filters
 from fake_useragent import UserAgent
+from telegram import Venue, Location
 
 import config
 import globals
 import utils
+from time import sleep
+
 
 # Enable logging
 logging.basicConfig(
@@ -26,15 +33,19 @@ def alarm(context: CallbackContext) -> None:
             config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
         if outputText:
             for center in outputText:
-                context.bot.send_message(
-                    job.context, text=utils.formatDictToMessage(center))
-            context.bot.send_message(job.context, text=config.DEFAULT_MESSAGE)
+                sleep(0.1)
+                context.bot.sendMessage(
+                    chat_id=job.context, text=utils.formatDictToMessage(center), parse_mode=ParseMode.HTML)
+            sleep(0.1)
+            context.bot.send_message(job.context, text=config.DEFAULT_MESSAGE,parse_mode=ParseMode.HTML)
 
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         globals.setHeader()
-        context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=str(e))
-
+        try:
+            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc(e)+"\nException from Test Code",disable_notification=True)
+        except Exception as e:
+            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc(e)+"\nException from Test Code",disable_notification=True)
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -111,7 +122,7 @@ def updateRawResponse(context: CallbackContext) -> None:
                 context.bot.send_message(
                     job.context, text=(utils.formatDictToMessage(center)))
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         globals.setHeader()
         context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=str(e)+"\n FROM UPDATE COMMAND" )
 
@@ -137,26 +148,24 @@ def getSlotsByDistrict(district_id, date):
     response = requests.get(config.CALENDAR_URL.format(
         district_id=district_id, date=date), headers=globals.header)
     response.raise_for_status()
-    centers = response.json()['centers']
-    return getValidCentersWithSessionsList(centers)
+    if response.ok and response.json()['centers']:
+        centers = response.json()['centers']
+        return getValidCentersWithSessionsList(centers)
 
 
 def getValidCentersWithSessionsList(centers):
-    current_sessions_ids = []
+    current_sessions_ids = dict()
     output_json_list = []
     for center in centers:
         sessions = center['sessions']
-        center = utils.filterDictByFields(center, config.CENTER_FIELDS)
         for session in sessions:
             if session['min_age_limit'] <= config.MIN_AGE and session['available_capacity'] > 1:
-                current_sessions_ids.append(session["session_id"])
-                if session["session_id"] not in globals.previous_sessions:
-                    session = utils.filterDictByFields(
-                        session, config.SESSION_FIELDS)
+                sessionKey = utils.generateSessionKey(session["session_id"],session['date'],center['center_id'])
+                current_sessions_ids[sessionKey] = session['available_capacity']
+                if sessionKey not in globals.previous_sessions or globals.previous_sessions[sessionKey] < session['available_capacity']:
                     session.update(center)
-                    output_json_list.append(session)
+                    output_json_list.append(session)          
     globals.previous_sessions = current_sessions_ids
-    globals.count += 1
     return output_json_list
 
 
