@@ -18,6 +18,8 @@ import utils
 from time import sleep
 
 
+first_time=1
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
@@ -27,25 +29,28 @@ logger = logging.getLogger(__name__)
 
 def alarm(context: CallbackContext) -> None:
     """Send the alarm message."""
+    global first_time
     job = context.job
     try:
         outputText = getSlotsByDistrict(
             config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
+        message=''
         if outputText:
             for center in outputText:
-                sleep(0.1)
-                context.bot.sendMessage(
-                    chat_id=job.context, text=utils.formatDictToMessage(center), parse_mode=ParseMode.HTML)
+                message+=utils.formatDictToMessage(center)+'\n\n'
             sleep(0.1)
-            context.bot.send_message(job.context, text=config.DEFAULT_MESSAGE,parse_mode=ParseMode.HTML)
-
+            if message and not first_time:
+                message+=config.DEFAULT_MESSAGE
+                context.bot.send_message(
+                        chat_id=job.context, text=message, parse_mode=ParseMode.HTML, timeout=20)
+        first_time = 0
     except Exception as e:
         logger.exception(e)
         globals.setHeader()
         try:
-            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc(e)+"\nException from Test Code",disable_notification=True)
+            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc()+"\nException from Test Code",disable_notification=True)
         except Exception as e:
-            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc(e)+"\nException from Test Code",disable_notification=True)
+            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc()+"\nException from Test Code",disable_notification=True)
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -117,10 +122,12 @@ def updateRawResponse(context: CallbackContext) -> None:
     try:
         outputText = getRawResponse(
             config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
+        message=''
         if outputText:
             for center in outputText:
-                context.bot.send_message(
-                    job.context, text=(utils.formatDictToMessage(center)))
+                message+=utils.formatDictToMessage(center)+'\n\n'
+        context.bot.send_message(
+                    job.context, text=(message))
     except Exception as e:
         logger.exception(e)
         globals.setHeader()
@@ -134,11 +141,11 @@ def getRawResponse(district_id, date):
     responseOut = []
     for center in centers:
         sessions = center['sessions']
-        center = utils.filterDictByFields(center, config.CENTER_FIELDS)
+        # center = utils.filterDictByFields(center, config.CENTER_FIELDS)
         for session in sessions:
             if session['min_age_limit'] <= config.MIN_AGE:
-                session = utils.filterDictByFields(
-                    session, config.SESSION_FIELDS)
+                # session = utils.filterDictByFields(
+                #     session, config.SESSION_FIELDS)
                 session.update(center)
                 responseOut.append(session)
     return responseOut

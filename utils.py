@@ -1,7 +1,7 @@
 from datetime import datetime
 
 
-def formatDictToMessage(input_dict):
+def formatDictToMessage(input_dict) -> str:
     availabilty = ""
     if input_dict.get('available_capacity_dose1'):
         availabilty+=f"\nDOSE 1: {input_dict.get('available_capacity_dose1')} Available"
