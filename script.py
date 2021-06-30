@@ -18,7 +18,7 @@ import utils
 from time import sleep
 
 
-first_time=1
+first_time=0
 
 # Enable logging
 logging.basicConfig(
@@ -32,25 +32,27 @@ def alarm(context: CallbackContext) -> None:
     global first_time
     job = context.job
     try:
-        outputText = getSlotsByDistrict(
+        outputText, currentidset = getSlotsByDistrict(
             config.ROHTAK_DISTRICT_ID, datetime.today().strftime('%d-%m-%Y'))
         message=''
         if outputText:
             for center in outputText:
                 message+=utils.formatDictToMessage(center)+'\n\n'
-            sleep(0.1)
             if message and not first_time:
                 message+=config.DEFAULT_MESSAGE
                 context.bot.send_message(
                         chat_id=job.context, text=message, parse_mode=ParseMode.HTML, timeout=20)
+        globals.previous_sessions = currentidset
         first_time = 0
     except Exception as e:
         logger.exception(e)
         globals.setHeader()
         try:
-            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc()+"\nException from Test Code",disable_notification=True)
+            context.bot.send_message(
+                        chat_id=job.context, text=message, parse_mode=ParseMode.HTML, timeout=20)
+            globals.previous_sessions = currentidset
         except Exception as e:
-            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=traceback.format_exc()+"\nException from Test Code",disable_notification=True)
+            context.bot.send_message(config.EXCEPTION_CHANNEL_CHAT_ID, text=str(e)+"\nException from Test Code",disable_notification=True)
 
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -171,9 +173,11 @@ def getValidCentersWithSessionsList(centers):
                 current_sessions_ids[sessionKey] = session['available_capacity']
                 if sessionKey not in globals.previous_sessions or globals.previous_sessions[sessionKey] < session['available_capacity']:
                     session.update(center)
-                    output_json_list.append(session)          
-    globals.previous_sessions = current_sessions_ids
-    return output_json_list
+                    output_json_list.append(session)
+                else:
+                    current_sessions_ids[sessionKey] = globals.previous_sessions[sessionKey]
+    # globals.previous_sessions = current_sessions_ids
+    return output_json_list, current_sessions_ids
 
 
 if __name__ == '__main__':
