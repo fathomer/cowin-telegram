@@ -8,5 +8,4 @@ def setHeader():
     global ua
     header = {'User-Agent': str(ua.random)} 
 
-previous_sessions = []
-count = 0
+previous_sessions = dict()
